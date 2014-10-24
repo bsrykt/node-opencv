@@ -91,6 +91,10 @@ class Matrix: public node::ObjectWrap {
     JSFUNC(Split)
     JSFUNC(Merge)
     JSFUNC(EqualizeHist)
+    #if CV_MAJOR_VERSION >= 2 && CV_MINOR_VERSION >=4
+    JSFUNC(AdaptiveEqualizeHist)
+    JSFUNC(AdaptiveEqualizeHistRGB)
+    #endif
     JSFUNC(Pixel)
     JSFUNC(FloodFill)
 

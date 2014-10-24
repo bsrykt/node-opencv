@@ -78,6 +78,10 @@ Matrix::Init(Handle<Object> target) {
 	NODE_SET_PROTOTYPE_METHOD(ctor, "split", Split);
 	NODE_SET_PROTOTYPE_METHOD(ctor, "merge", Merge);
 	NODE_SET_PROTOTYPE_METHOD(ctor, "equalizeHist", EqualizeHist);
+	#if CV_MAJOR_VERSION >= 2 && CV_MINOR_VERSION >=4
+	NODE_SET_PROTOTYPE_METHOD(ctor, "adaptiveEqualizeHist", AdaptiveEqualizeHist);
+	NODE_SET_PROTOTYPE_METHOD(ctor, "adaptiveEqualizeHistRGB", AdaptiveEqualizeHistRGB);
+	#endif
 	NODE_SET_PROTOTYPE_METHOD(ctor, "floodFill", FloodFill);
 	NODE_SET_PROTOTYPE_METHOD(ctor, "matchTemplate", MatchTemplate);
 	NODE_SET_PROTOTYPE_METHOD(ctor, "minMaxLoc", MinMaxLoc);
@@ -1637,6 +1641,70 @@ NAN_METHOD(Matrix::EqualizeHist) {
 
   NanReturnUndefined();
 }
+
+#if CV_MAJOR_VERSION >= 2 && CV_MINOR_VERSION >=4
+// @author bsrykt
+// Equalizes histogram using CLAHE (Contrast Limited Adaptive Histogram Equalization)
+// img.adaptiveEqualizeHist()
+Handle<Value>
+Matrix::AdaptiveEqualizeHist(const v8::Arguments& args) {
+  HandleScope scope;
+  Matrix * self = ObjectWrap::Unwrap<Matrix>(args.This());
+
+  cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
+
+	if (args.Length() == 1 && args[0]->IsNumber()){
+    clahe->setClipLimit(args[0]->NumberValue());
+  } else if (args.Length() == 2 && args[0]->IsNumber() && args[1]->IsArray()) {
+    clahe->setClipLimit(args[0]->NumberValue());
+
+    Local<Object> tgs = args[1]->ToObject();
+    cv::Size tileGridSize = cv::Size(tgs->Get(0)->IntegerValue(), tgs->Get(1)->IntegerValue());
+    clahe->setTilesGridSize(tileGridSize);
+  }
+
+  clahe->apply(self->mat, self->mat);
+
+  return scope.Close(Undefined());
+}
+
+// @author bsrykt
+// Equalizes histogram of the RGB images using CLAHE
+// img.adaptiveEqualizeHistRGB()
+Handle<Value>
+Matrix::AdaptiveEqualizeHistRGB(const v8::Arguments& args) {
+  HandleScope scope;
+  Matrix * self = ObjectWrap::Unwrap<Matrix>(args.This());
+  cv::Mat lab;
+  cv::Mat lClahe;
+
+  cv::cvtColor(self->mat, lab, CV_BGR2Lab);
+
+  std::vector<cv::Mat> labChannels(3);
+  cv::split(lab, labChannels);
+
+  cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
+
+	if (args.Length() == 1 && args[0]->IsNumber()){
+    clahe->setClipLimit(args[0]->NumberValue());
+  } else if (args.Length() == 2 && args[0]->IsNumber() && args[1]->IsArray()) {
+    clahe->setClipLimit(args[0]->NumberValue());
+
+    Local<Object> tgs = args[1]->ToObject();
+    cv::Size tileGridSize = cv::Size(tgs->Get(0)->IntegerValue(), tgs->Get(1)->IntegerValue());
+    clahe->setTilesGridSize(tileGridSize);
+  }
+
+  clahe->apply(labChannels[0], lClahe);
+  lClahe.copyTo(labChannels[0]);
+
+  cv::merge(labChannels, lab);
+  cv::cvtColor(lab, self->mat, CV_Lab2BGR);
+
+  return scope.Close(Undefined());
+}
+
+#endif
 
 NAN_METHOD(Matrix::FloodFill){
 	SETUP_FUNCTION(Matrix)
